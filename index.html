@@ -185,7 +185,7 @@
   .block-banner .bv{font-family:'Special Elite',monospace; font-size:15px; color:var(--gold-bright);}
   .task-item{
     display:flex; align-items:flex-start; gap:10px; background:var(--panel); border:1px solid var(--line);
-    border-radius:10px; padding:11px 12px; margin-bottom:8px; transition:background .2s;
+    border-radius:10px; padding:11px 12px; margin-bottom:8px; transition:background .2s; cursor:pointer;
   }
   .task-item.done{background:#151a17; border-color:rgba(63,143,138,0.35);}
   .chk{
@@ -196,6 +196,23 @@
   .task-text{font-size:13px; line-height:1.4;}
   .task-item.done .task-text{color:#7f9791; text-decoration:line-through;}
   .task-tag{font-size:9.5px; font-family:'IBM Plex Mono',monospace; color:#8f8778; margin-top:3px;}
+
+  /* ---- Custom Chores (new) ---- */
+  .chore-add-row{display:flex; gap:8px; margin-bottom:14px;}
+  .chore-input{
+    flex:1; background:var(--panel); border:1px solid var(--line-strong); border-radius:8px;
+    color:var(--paper); padding:10px 12px; font-size:13px; font-family:'IBM Plex Sans',sans-serif;
+  }
+  .chore-input::placeholder{color:#6b6357;}
+  .chore-input:focus{outline:none; border-color:var(--gold-bright);}
+  .chore-item{display:flex; align-items:flex-start; gap:10px;}
+  .chore-item .task-text-wrap{flex:1; min-width:0;}
+  .chore-delete-btn{
+    background:none; border:1px solid var(--line-strong); color:var(--red-bright); border-radius:6px;
+    font-size:11px; font-family:'IBM Plex Sans',sans-serif; font-weight:600; cursor:pointer;
+    padding:5px 9px; flex:none; align-self:center;
+  }
+  .chore-delete-btn:hover{background:rgba(165,49,44,0.15); border-color:var(--red);}
 
   /* Map */
   .map-wrap{
@@ -412,6 +429,15 @@
 
     <!-- TRAINING / TASKS -->
     <section class="view" id="view-training">
+
+      <!-- ===== NEW: Custom Chores (input + dynamic list, localStorage "emily_chores") ===== -->
+      <div class="section-title">My Chores</div>
+      <div class="chore-add-row">
+        <input type="text" id="choreInput" class="chore-input" placeholder="Add a new chore..." maxlength="80">
+        <button class="btn btn-gold" id="btnAddChore">Add</button>
+      </div>
+      <div id="customChoreList"></div>
+
       <div class="block-banner">
         <div><div class="bt">Active Chore Block</div><div class="bv" id="blockLabel">BLOCK B</div></div>
         <div style="text-align:right;">
@@ -912,6 +938,88 @@
     return d.innerHTML;
   }
 
+  /* ================= CUSTOM CHORES (NEW) =================
+     Independent of the main "state" object per the requirements:
+     persisted under its own localStorage key "emily_chores".
+  ================================================================ */
+  var CHORE_KEY = "emily_chores";
+  var customChores = [];
+
+  function loadChores(){
+    try{
+      var raw = localStorage.getItem(CHORE_KEY);
+      customChores = raw ? JSON.parse(raw) : [];
+      if(!Array.isArray(customChores)) customChores = [];
+    }catch(e){
+      customChores = [];
+    }
+  }
+  function saveChores(){
+    localStorage.setItem(CHORE_KEY, JSON.stringify(customChores));
+  }
+
+  function renderCustomChores(){
+    var container = document.getElementById('customChoreList');
+    container.innerHTML = "";
+    if(customChores.length===0){
+      container.innerHTML = '<div class="empty-note">No custom chores yet — add one above.</div>';
+      return;
+    }
+    customChores.forEach(function(chore){
+      var item = document.createElement('div');
+      item.className = "task-item chore-item"+(chore.completed?" done":"");
+      item.innerHTML =
+        '<div class="chk">'+(chore.completed?'✓':'')+'</div>'+
+        '<div class="task-text-wrap"><div class="task-text">'+escapeHtml(chore.text)+'</div><div class="task-tag">CUSTOM CHORE</div></div>'+
+        '<button class="chore-delete-btn" type="button">Delete</button>';
+
+      // Clicking anywhere on the row (except the delete button) toggles completion
+      item.addEventListener('click', function(e){
+        if(e.target.closest('.chore-delete-btn')) return;
+        toggleChore(chore.id);
+      });
+      item.querySelector('.chore-delete-btn').addEventListener('click', function(e){
+        e.stopPropagation();
+        deleteChore(chore.id);
+      });
+      container.appendChild(item);
+    });
+  }
+
+  function addChore(){
+    var input = document.getElementById('choreInput');
+    var text = input.value.trim();
+    if(!text) return;
+    customChores.push({
+      id: 'c' + Date.now() + Math.floor(Math.random()*1000),
+      text: text,
+      completed: false
+    });
+    saveChores();
+    input.value = "";
+    input.focus();
+    renderCustomChores();
+  }
+
+  function toggleChore(id){
+    var c = customChores.find(function(x){ return x.id===id; });
+    if(!c) return;
+    c.completed = !c.completed;
+    saveChores();
+    renderCustomChores();
+  }
+
+  function deleteChore(id){
+    customChores = customChores.filter(function(x){ return x.id!==id; });
+    saveChores();
+    renderCustomChores();
+  }
+
+  document.getElementById('btnAddChore').addEventListener('click', addChore);
+  document.getElementById('choreInput').addEventListener('keydown', function(e){
+    if(e.key === "Enter"){ addChore(); }
+  });
+
   /* ================= MAP ================= */
   function renderMap(){
     var wrap = document.getElementById('mapNodes');
@@ -1371,8 +1479,10 @@
 
   /* ================= INIT ================= */
   load();
+  loadChores();
   checkOnboard();
   renderAll();
+  renderCustomChores();
 
 })();
 </script>
