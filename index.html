@@ -1,0 +1,1380 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no">
+<title>PROJECT LOCKSTEP — Behavioral Analysis Unit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#12141a;
+    --bg-alt:#181b23;
+    --panel:#1d212b;
+    --paper:#ece3cd;
+    --paper-dark:#ddd0ac;
+    --ink:#231f1a;
+    --ink-soft:#5a5142;
+    --red:#a5312c;
+    --red-bright:#c73e37;
+    --teal:#3f8f8a;
+    --teal-bright:#57b3ac;
+    --gold:#c9a227;
+    --gold-bright:#e0bc47;
+    --line: rgba(236,227,205,0.12);
+    --line-strong: rgba(236,227,205,0.22);
+    --shadow: 0 10px 26px rgba(0,0,0,0.45);
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(1200px 700px at 20% -10%, #1b2029 0%, transparent 60%),
+      radial-gradient(1000px 700px at 100% 0%, #171a22 0%, transparent 55%),
+      var(--bg);
+    color:var(--paper);
+    font-family:'IBM Plex Sans', sans-serif;
+    min-height:100vh;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x:hidden;
+  }
+  .display{font-family:'Special Elite', 'IBM Plex Mono', monospace;}
+  .mono{font-family:'IBM Plex Mono', monospace;}
+
+  #app{max-width:520px; margin:0 auto; min-height:100vh; position:relative; display:flex; flex-direction:column;}
+
+  /* ---------- TOP BAR ---------- */
+  .topbar{
+    background: linear-gradient(180deg, #1a1e27 0%, #14171e 100%);
+    border-bottom:1px solid var(--line-strong);
+    padding:14px 16px 12px;
+    position:sticky; top:0; z-index:40;
+  }
+  .topbar-row{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .agent-id{display:flex; align-items:center; gap:10px; min-width:0;}
+  .badge-shield{
+    width:38px; height:42px; flex:none;
+    background: linear-gradient(160deg, var(--gold-bright), var(--gold) 60%, #8a6c17);
+    clip-path: polygon(50% 0%, 100% 20%, 100% 65%, 50% 100%, 0% 65%, 0% 20%);
+    display:flex; align-items:center; justify-content:center;
+    color:#241d06; font-weight:700; font-size:15px; font-family:'Special Elite', monospace;
+    box-shadow: inset 0 0 0 2px rgba(0,0,0,0.25);
+  }
+  .agent-text{min-width:0;}
+  .agent-name{font-size:15px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .agent-rank{font-size:11px; letter-spacing:.03em; color:var(--gold-bright); font-family:'Special Elite',monospace;}
+  .icon-btn{
+    width:36px;height:36px;border-radius:8px;border:1px solid var(--line-strong);
+    background:var(--panel); color:var(--paper); display:flex;align-items:center;justify-content:center;
+    font-size:17px; cursor:pointer; flex:none;
+  }
+  .icon-btn:active{transform:scale(0.94);}
+
+  .xp-row{margin-top:10px;}
+  .xp-labels{display:flex; justify-content:space-between; font-size:10.5px; color:var(--ink-soft); margin-bottom:4px; font-family:'IBM Plex Mono',monospace;}
+  .xp-labels span.next{color:#9a9184;}
+  .xp-bar-track{height:8px; border-radius:5px; background:#0e1015; border:1px solid var(--line-strong); overflow:hidden;}
+  .xp-bar-fill{height:100%; background:linear-gradient(90deg, var(--gold), var(--gold-bright)); border-radius:5px; transition:width .5s ease;}
+
+  .stat-pills{display:flex; gap:8px; margin-top:10px;}
+  .pill{
+    flex:1; background:var(--panel); border:1px solid var(--line); border-radius:9px;
+    padding:6px 8px; text-align:center;
+  }
+  .pill .pv{font-family:'IBM Plex Mono',monospace; font-weight:600; font-size:14px;}
+  .pill .pl{font-size:9px; letter-spacing:.04em; color:#8b8377; margin-top:1px;}
+  .pill.tok .pv{color:var(--teal-bright);}
+  .pill.ins .pv{color:var(--gold-bright);}
+  .pill.clue .pv{color:var(--red-bright);}
+
+  /* ---------- MAIN VIEWS ---------- */
+  main{flex:1; padding:14px 14px 16px;}
+  .view{display:none; animation:fadeIn .25s ease;}
+  .view.active{display:block;}
+  @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
+
+  .section-title{
+    font-family:'Special Elite', monospace; font-size:13px; letter-spacing:.02em;
+    color:#cfc7b4; margin: 18px 0 10px; display:flex; align-items:center; gap:8px;
+  }
+  .section-title:first-child{margin-top:2px;}
+  .section-title::before{content:""; width:4px; height:14px; background:var(--red-bright); display:inline-block; border-radius:1px;}
+
+  /* Dialogue / NPC cards */
+  .npc-card{
+    background:#0f1216; border:1px solid var(--line-strong); border-radius:10px;
+    padding:12px 12px 12px 12px; margin-bottom:10px; position:relative;
+    box-shadow: var(--shadow);
+  }
+  .npc-head{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+  .npc-avatar{
+    width:30px;height:30px;border-radius:6px; display:flex; align-items:center;justify-content:center;
+    font-size:15px; flex:none;
+  }
+  .npc-avatar.lead{background:rgba(165,49,44,0.25); border:1px solid var(--red);}
+  .npc-avatar.tech{background:rgba(63,143,138,0.25); border:1px solid var(--teal);}
+  .npc-name{font-size:12.5px; font-weight:600;}
+  .npc-role{font-size:9.5px; color:#877f72; font-family:'IBM Plex Mono',monospace;}
+  .npc-line{font-family:'IBM Plex Mono', monospace; font-size:12.5px; line-height:1.55; color:#d9d2c1;}
+  .npc-line .cursor{display:inline-block; width:6px; height:12px; background:var(--teal-bright); margin-left:2px; animation:blink 1s steps(1) infinite; vertical-align:middle;}
+  @keyframes blink{50%{opacity:0;}}
+
+  /* Evidence board */
+  .board-wrap{
+    background: repeating-linear-gradient(0deg, #3a2c1c, #3a2c1c 2px, #35291a 2px, #35291a 40px);
+    border-radius:12px; border:1px solid #4a3823; padding:16px 12px 10px; position:relative; overflow:hidden;
+  }
+  .board-string{position:absolute; inset:0; pointer-events:none;}
+  .suspect-grid{display:grid; grid-template-columns:1fr 1fr; gap:12px; position:relative; z-index:2;}
+  .suspect-card{
+    background:var(--paper); color:var(--ink); border-radius:3px; padding:9px 9px 10px;
+    box-shadow:0 6px 14px rgba(0,0,0,0.4); position:relative; transform:rotate(var(--rot,0deg));
+    border:1px solid #c8b98e;
+  }
+  .suspect-card::before{
+    content:""; position:absolute; top:-7px; left:50%; transform:translateX(-50%);
+    width:16px; height:16px; border-radius:50%; background:radial-gradient(circle at 35% 30%, #eee, #888);
+    box-shadow:0 2px 3px rgba(0,0,0,0.5);
+  }
+  .suspect-photo{
+    width:100%; aspect-ratio:1/1; border-radius:2px; margin-bottom:6px;
+    background:repeating-linear-gradient(135deg,#000,#000 6px,#1c1c1c 6px,#1c1c1c 12px);
+    display:flex;align-items:center;justify-content:center; font-size:26px; color:#555;
+  }
+  .suspect-name{font-family:'Special Elite',monospace; font-size:11.5px; font-weight:700;}
+  .suspect-status{font-size:9.5px; color:var(--ink-soft); margin-top:2px; font-family:'IBM Plex Mono',monospace;}
+  .suspect-hpbar{height:5px; background:#c8b98e; border-radius:3px; margin-top:6px; overflow:hidden;}
+  .suspect-hpfill{height:100%; background:var(--red-bright);}
+
+  .redacted{
+    display:inline-block; background:#111; color:transparent; border-radius:2px; padding:0 4px;
+  }
+
+  /* Puzzle launch cards */
+  .puzzle-launch{
+    display:flex; align-items:center; gap:12px; background:var(--panel); border:1px solid var(--line);
+    border-radius:11px; padding:12px; margin-bottom:10px;
+  }
+  .puzzle-ico{
+    width:44px;height:44px; border-radius:9px; flex:none; display:flex;align-items:center;justify-content:center;
+    font-size:22px;
+  }
+  .puzzle-ico.chem{background:rgba(63,143,138,0.2); border:1px solid var(--teal);}
+  .puzzle-ico.crypt{background:rgba(201,162,39,0.18); border:1px solid var(--gold);}
+  .puzzle-info{flex:1; min-width:0;}
+  .puzzle-title{font-size:13px; font-weight:600;}
+  .puzzle-sub{font-size:11px; color:#8f8778; margin-top:2px;}
+  .btn{
+    border:none; border-radius:8px; font-family:'IBM Plex Sans',sans-serif; font-weight:600; cursor:pointer;
+    padding:9px 14px; font-size:12.5px; transition:transform .1s ease;
+  }
+  .btn:active{transform:scale(0.95);}
+  .btn-gold{background:linear-gradient(180deg,var(--gold-bright),var(--gold)); color:#241d06;}
+  .btn-teal{background:linear-gradient(180deg,var(--teal-bright),var(--teal)); color:#062120;}
+  .btn-red{background:linear-gradient(180deg,var(--red-bright),var(--red)); color:#fff;}
+  .btn-outline{background:transparent; border:1px solid var(--line-strong); color:var(--paper);}
+  .btn-block{width:100%; display:block; text-align:center;}
+  .btn:disabled{opacity:.4; cursor:not-allowed;}
+
+  /* Tasks / Training */
+  .block-banner{
+    display:flex; align-items:center; justify-content:space-between; background:var(--panel);
+    border:1px solid var(--line); border-radius:10px; padding:10px 12px; margin-bottom:12px;
+  }
+  .block-banner .bt{font-size:12px; color:#a89d87;}
+  .block-banner .bv{font-family:'Special Elite',monospace; font-size:15px; color:var(--gold-bright);}
+  .task-item{
+    display:flex; align-items:flex-start; gap:10px; background:var(--panel); border:1px solid var(--line);
+    border-radius:10px; padding:11px 12px; margin-bottom:8px; transition:background .2s;
+  }
+  .task-item.done{background:#151a17; border-color:rgba(63,143,138,0.35);}
+  .chk{
+    width:22px;height:22px; border-radius:6px; border:2px solid var(--line-strong); flex:none; margin-top:1px;
+    display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:13px; color:transparent;
+  }
+  .task-item.done .chk{background:var(--teal); border-color:var(--teal); color:#04231f;}
+  .task-text{font-size:13px; line-height:1.4;}
+  .task-item.done .task-text{color:#7f9791; text-decoration:line-through;}
+  .task-tag{font-size:9.5px; font-family:'IBM Plex Mono',monospace; color:#8f8778; margin-top:3px;}
+
+  /* Map */
+  .map-wrap{
+    background:#0e1116; border:1px solid var(--line-strong); border-radius:12px; padding:14px; position:relative;
+    background-image: radial-gradient(rgba(255,255,255,0.03) 1px, transparent 1px);
+    background-size:14px 14px;
+  }
+  .map-node{
+    display:flex; align-items:center; gap:10px; padding:11px; border-radius:10px; margin-bottom:9px;
+    border:1px solid var(--line);
+  }
+  .map-node.locked{opacity:.4;}
+  .map-node.unlocked{background:rgba(201,162,39,0.08); border-color:rgba(201,162,39,0.4);}
+  .map-pin{width:30px;height:30px;border-radius:50%; display:flex;align-items:center;justify-content:center; font-size:14px; flex:none;}
+  .map-node.unlocked .map-pin{background:var(--gold); color:#241d06;}
+  .map-node.locked .map-pin{background:#2a2e37; color:#666;}
+  .map-name{font-size:13px; font-weight:600;}
+  .map-desc{font-size:10.5px; color:#8f8778;}
+
+  .capture-panel{
+    background:linear-gradient(180deg, rgba(165,49,44,0.14), rgba(165,49,44,0.03));
+    border:1px solid rgba(165,49,44,0.4); border-radius:12px; padding:14px; margin-top:16px;
+  }
+  .capture-title{font-family:'Special Elite',monospace; font-size:13px; color:var(--red-bright); margin-bottom:6px;}
+  .capture-track{height:10px; background:#1a0f0e; border-radius:6px; overflow:hidden; border:1px solid rgba(165,49,44,0.4); margin:8px 0;}
+  .capture-fill{height:100%; background:linear-gradient(90deg, var(--red), var(--red-bright));}
+
+  /* Profile */
+  .profile-card{background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; text-align:center; margin-bottom:14px;}
+  .rank-badge{
+    width:64px;height:70px; margin:0 auto 8px; background:linear-gradient(160deg, var(--gold-bright), var(--gold) 60%, #8a6c17);
+    clip-path: polygon(50% 0%, 100% 20%, 100% 65%, 50% 100%, 0% 65%, 0% 20%);
+    display:flex;align-items:center;justify-content:center; font-size:26px; color:#241d06;
+  }
+  .rank-name{font-family:'Special Elite',monospace; font-size:16px; color:var(--gold-bright);}
+  .rank-next{font-size:11px; color:#8f8778; margin-top:2px;}
+  .stat-grid{display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-top:14px;}
+  .stat-box{background:var(--bg-alt); border:1px solid var(--line); border-radius:9px; padding:10px; text-align:center;}
+  .stat-box .sv{font-family:'IBM Plex Mono',monospace; font-size:16px; font-weight:600;}
+  .stat-box .sl{font-size:9.5px; color:#8f8778; margin-top:2px;}
+
+  /* Bottom nav */
+  .bottom-nav{
+    position:fixed; left:0; right:0; bottom:0; max-width:520px; margin:0 auto;
+    background:linear-gradient(180deg,#191d25,#12151b); border-top:1px solid var(--line-strong);
+    display:flex; z-index:50;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+  .nav-tab{
+    flex:1; display:flex; flex-direction:column; align-items:center; gap:3px; padding:10px 4px 8px;
+    color:#71695c; background:none; border:none; font-family:'IBM Plex Sans',sans-serif; cursor:pointer;
+    border-top:2px solid transparent;
+  }
+  .nav-tab.active{color:var(--gold-bright); border-top-color:var(--gold-bright);}
+  .nav-tab .ni{font-size:18px;}
+  .nav-tab .nl{font-size:9.5px; letter-spacing:.02em;}
+  /* Layout safety per spec: keep tabs clear of floating browser chrome */
+  #app{padding-bottom:90px;}
+
+  /* Modal */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(6,7,9,0.78); z-index:100; display:none;
+    align-items:flex-end; justify-content:center; backdrop-filter:blur(2px);
+  }
+  .modal-overlay.open{display:flex;}
+  .modal-sheet{
+    width:100%; max-width:520px; background:var(--bg-alt); border-radius:18px 18px 0 0;
+    border:1px solid var(--line-strong); border-bottom:none; padding:18px 16px 22px; max-height:88vh; overflow-y:auto;
+    animation:slideUp .25s ease;
+  }
+  @keyframes slideUp{from{transform:translateY(30px); opacity:0;} to{transform:translateY(0); opacity:1;}}
+  .modal-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:12px;}
+  .modal-title{font-family:'Special Elite',monospace; font-size:15px; color:var(--gold-bright);}
+  .modal-close{background:none; border:none; color:#8f8778; font-size:20px; cursor:pointer; line-height:1;}
+
+  /* Water sort */
+  .tubes-wrap{display:flex; flex-wrap:wrap; gap:14px; justify-content:center; padding:10px 0 6px;}
+  .tube{
+    width:46px; height:150px; border:3px solid #464040; border-top:none; border-radius:0 0 14px 14px;
+    display:flex; flex-direction:column-reverse; overflow:hidden; background:#0c0d10; cursor:pointer;
+    position:relative; transition:transform .15s;
+  }
+  .tube.selected{transform:translateY(-10px); border-color:var(--gold-bright); box-shadow:0 0 0 2px var(--gold-bright);}
+  .tube-seg{width:100%; height:25%; flex:none;}
+  .tube-cap{position:absolute; top:-9px; left:-3px; right:-3px; height:6px; background:#464040; border-radius:3px;}
+  .seg-red{background:linear-gradient(160deg,#e2554d,#a5312c);}
+  .seg-teal{background:linear-gradient(160deg,#5fc2bb,#2f7671);}
+  .seg-gold{background:linear-gradient(160deg,#f0cc5e,#b8901e);}
+  .seg-purple{background:linear-gradient(160deg,#a97fe0,#6d43a8);}
+  .seg-green{background:linear-gradient(160deg,#7fd18a,#3e9250);}
+  .seg-blue{background:linear-gradient(160deg,#6fa3e0,#3465a8);}
+
+  /* Pattern decryption */
+  .seq-display{display:flex; gap:10px; justify-content:center; margin:14px 0; font-size:30px; min-height:44px;}
+  .symbol-pad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; margin-top:8px;}
+  .symbol-btn{
+    background:var(--panel); border:1px solid var(--line-strong); border-radius:12px; font-size:26px;
+    padding:16px 0; cursor:pointer; color:var(--paper);
+  }
+  .symbol-btn:active{background:#262b36;}
+  .input-trail{display:flex; gap:8px; justify-content:center; min-height:30px; margin:8px 0; font-size:20px; color:var(--teal-bright);}
+
+  /* PIN pad */
+  .pin-dots{display:flex; gap:12px; justify-content:center; margin:14px 0;}
+  .pin-dot{width:14px;height:14px;border-radius:50%; border:2px solid var(--line-strong);}
+  .pin-dot.filled{background:var(--gold-bright); border-color:var(--gold-bright);}
+  .pin-pad{display:grid; grid-template-columns:repeat(3,1fr); gap:10px; max-width:260px; margin:0 auto;}
+  .pin-key{
+    background:var(--panel); border:1px solid var(--line-strong); border-radius:10px; font-size:18px;
+    padding:14px 0; color:var(--paper); font-family:'IBM Plex Mono',monospace; cursor:pointer;
+  }
+  .pin-key:active{background:#262b36;}
+  .pin-error{color:var(--red-bright); font-size:11.5px; text-align:center; height:16px; margin-top:2px;}
+
+  /* Settings */
+  .settings-group{margin-bottom:16px;}
+  .settings-label{font-size:11px; color:#8f8778; margin-bottom:6px; text-transform:uppercase; letter-spacing:.03em;}
+  .settings-row{display:flex; gap:8px; align-items:center; margin-bottom:8px;}
+  .settings-row input[type=number], .settings-row input[type=text], .settings-row input[type=password]{
+    flex:1; background:var(--bg); border:1px solid var(--line-strong); border-radius:8px; color:var(--paper);
+    padding:8px 10px; font-size:13px; font-family:'IBM Plex Mono',monospace;
+  }
+  .toggle-row{display:flex; gap:8px;}
+  .toggle-opt{flex:1; text-align:center; padding:9px; border-radius:8px; border:1px solid var(--line-strong); cursor:pointer; font-size:12.5px; font-weight:600;}
+  .toggle-opt.active{background:var(--gold); color:#241d06; border-color:var(--gold);}
+  textarea.task-edit{
+    width:100%; min-height:70px; background:var(--bg); border:1px solid var(--line-strong); color:var(--paper);
+    border-radius:8px; padding:8px 10px; font-size:12px; font-family:'IBM Plex Mono',monospace; resize:vertical;
+  }
+  .subhead{font-size:11.5px; color:var(--teal-bright); margin:12px 0 5px; font-family:'IBM Plex Mono',monospace;}
+
+  .toast{
+    position:fixed; bottom:100px; left:50%; transform:translateX(-50%); background:#0c0d10; border:1px solid var(--gold);
+    color:var(--gold-bright); padding:10px 16px; border-radius:20px; font-size:12.5px; z-index:200; opacity:0;
+    transition:opacity .3s, transform .3s; pointer-events:none; font-family:'IBM Plex Mono',monospace; white-space:nowrap;
+    max-width:88%; text-overflow:ellipsis; overflow:hidden;
+  }
+  .toast.show{opacity:1; transform:translateX(-50%) translateY(-6px);}
+
+  .empty-note{font-size:12px; color:#71695c; text-align:center; padding:18px 8px; font-family:'IBM Plex Mono',monospace;}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ============ TOP BAR ============ -->
+  <div class="topbar">
+    <div class="topbar-row">
+      <div class="agent-id">
+        <div class="badge-shield">FBI</div>
+        <div class="agent-text">
+          <div class="agent-name" id="hdrName">Agent</div>
+          <div class="agent-rank" id="hdrRank">JUNIOR ANALYST</div>
+        </div>
+      </div>
+      <button class="icon-btn" id="btnSettings" title="Bureau Settings">⚙</button>
+    </div>
+    <div class="xp-row">
+      <div class="xp-labels"><span id="xpNowLbl">0 XP</span><span class="next" id="xpNextLbl">150 to Field Profiler</span></div>
+      <div class="xp-bar-track"><div class="xp-bar-fill" id="xpBarFill" style="width:0%"></div></div>
+    </div>
+    <div class="stat-pills">
+      <div class="pill tok"><div class="pv" id="pillTokens">0</div><div class="pl">EVIDENCE TOKENS</div></div>
+      <div class="pill ins"><div class="pv" id="pillInsights">0</div><div class="pl">INSIGHTS</div></div>
+      <div class="pill clue"><div class="pv" id="pillClues">0/10</div><div class="pl">CASE CLUES</div></div>
+    </div>
+  </div>
+
+  <!-- ============ MAIN VIEWS ============ -->
+  <main>
+
+    <!-- CASE BOARD -->
+    <section class="view active" id="view-board">
+      <div class="section-title">Field Briefing</div>
+      <div class="npc-card">
+        <div class="npc-head">
+          <div class="npc-avatar lead">🕵️</div>
+          <div><div class="npc-name">Behavioral Lead Voss</div><div class="npc-role">SUPERVISORY PROFILER</div></div>
+        </div>
+        <div class="npc-line" id="vossLine">Loading transmission<span class="cursor"></span></div>
+      </div>
+      <div class="npc-card">
+        <div class="npc-head">
+          <div class="npc-avatar tech">💻</div>
+          <div><div class="npc-name">Tech Specialist Reyes</div><div class="npc-role">DIGITAL FORENSICS</div></div>
+        </div>
+        <div class="npc-line" id="reyesLine">Loading transmission<span class="cursor"></span></div>
+      </div>
+
+      <div class="section-title">Evidence Board</div>
+      <div class="board-wrap">
+        <div class="suspect-grid" id="suspectGrid"></div>
+      </div>
+      <button class="btn btn-red btn-block" id="btnInterrogate" style="margin-top:10px;">Open Sunday Interrogation Room</button>
+
+      <div class="section-title">Forensic Lab</div>
+      <div class="puzzle-launch">
+        <div class="puzzle-ico chem">🧪</div>
+        <div class="puzzle-info">
+          <div class="puzzle-title">Chemical Trace Sort</div>
+          <div class="puzzle-sub">Costs 3 Insights · Reward: Evidence Tokens + Clue</div>
+        </div>
+        <button class="btn btn-teal" id="btnLaunchChem">Analyze</button>
+      </div>
+      <div class="puzzle-launch">
+        <div class="puzzle-ico crypt">🔐</div>
+        <div class="puzzle-info">
+          <div class="puzzle-title">Pattern Decryption</div>
+          <div class="puzzle-sub">Costs 3 Insights · Reward: Evidence Tokens + Clue</div>
+        </div>
+        <button class="btn btn-gold" id="btnLaunchCrypt">Decrypt</button>
+      </div>
+    </section>
+
+    <!-- TRAINING / TASKS -->
+    <section class="view" id="view-training">
+      <div class="block-banner">
+        <div><div class="bt">Active Chore Block</div><div class="bv" id="blockLabel">BLOCK B</div></div>
+        <div style="text-align:right;">
+          <div class="bt">Today</div>
+          <div class="bv" id="todayLabel" style="font-size:13px;">—</div>
+        </div>
+      </div>
+      <div class="section-title">Behavioral Training — Daily</div>
+      <div id="dailyTasks"></div>
+      <div class="section-title" id="thuTitle" style="display:none;">Thursday Directive</div>
+      <div id="thuTasks"></div>
+      <div class="section-title" id="wkndTitle" style="display:none;">Weekend Sweep</div>
+      <div id="wkndTasks"></div>
+    </section>
+
+    <!-- MAP -->
+    <section class="view" id="view-map">
+      <div class="section-title">District Map — FBI Divisions</div>
+      <div class="map-wrap">
+        <div id="mapNodes"></div>
+      </div>
+      <div class="capture-panel">
+        <div class="capture-title">MONTHLY UNSUB CAPTURE</div>
+        <div class="mono" style="font-size:11px; color:#d7a19d;">Collect 10 case clues from interrogations and lab work to move on the master case.</div>
+        <div class="capture-track"><div class="capture-fill" id="captureFill" style="width:0%"></div></div>
+        <button class="btn btn-red btn-block" id="btnMegaBoss" disabled>Clues Insufficient</button>
+      </div>
+    </section>
+
+    <!-- PROFILE -->
+    <section class="view" id="view-profile">
+      <div class="profile-card">
+        <div class="rank-badge" id="profBadge">JA</div>
+        <div class="rank-name" id="profRankName">Junior Analyst</div>
+        <div class="rank-next" id="profRankNext">150 XP to Field Profiler</div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="sv" id="statXp">0</div><div class="sl">TOTAL XP</div></div>
+          <div class="stat-box"><div class="sv" id="statTokens">0</div><div class="sl">EVIDENCE TOKENS</div></div>
+          <div class="stat-box"><div class="sv" id="statInsights">0</div><div class="sl">INSIGHTS</div></div>
+          <div class="stat-box"><div class="sv" id="statDays">0</div><div class="sl">DAYS ACTIVE</div></div>
+        </div>
+      </div>
+      <button class="btn btn-outline btn-block" id="btnOpenSettingsProfile">Bureau Settings (Parent PIN)</button>
+    </section>
+
+  </main>
+
+  <!-- ============ BOTTOM NAV ============ -->
+  <nav class="bottom-nav">
+    <button class="nav-tab active" data-view="view-board"><span class="ni">📌</span><span class="nl">Case Board</span></button>
+    <button class="nav-tab" data-view="view-training"><span class="ni">✅</span><span class="nl">Training</span></button>
+    <button class="nav-tab" data-view="view-map"><span class="ni">🗺️</span><span class="nl">Map</span></button>
+    <button class="nav-tab" data-view="view-profile"><span class="ni">🪪</span><span class="nl">Profile</span></button>
+  </nav>
+</div>
+
+<!-- ============ MODALS ============ -->
+
+<!-- Onboarding -->
+<div class="modal-overlay" id="modalOnboard">
+  <div class="modal-sheet">
+    <div class="modal-title">CLASSIFIED — NEW RECRUIT INTAKE</div>
+    <p class="npc-line" style="margin-top:10px;">Welcome to Project Lockstep. Before deployment, the Bureau requires your field name.</p>
+    <div class="settings-row" style="margin-top:12px;">
+      <input type="text" id="onboardName" placeholder="Enter agent name" maxlength="18">
+    </div>
+    <button class="btn btn-gold btn-block" id="btnOnboardSubmit">Begin Training</button>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<!-- Water Sort Modal -->
+<div class="modal-overlay" id="modalChem">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">CHEMICAL TRACE SORT</div>
+      <button class="modal-close" data-close="modalChem">✕</button>
+    </div>
+    <p class="npc-line" style="font-size:11.5px;">Isolate each trace compound into its own vial. Tap a tube to lift, tap another to pour.</p>
+    <div class="tubes-wrap" id="tubesWrap"></div>
+    <div style="display:flex; gap:8px; margin-top:10px;">
+      <button class="btn btn-outline" style="flex:1;" id="btnChemReset">New Sample Set</button>
+      <button class="btn btn-outline" style="flex:1;" id="btnChemUndo">Undo</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pattern Decryption Modal -->
+<div class="modal-overlay" id="modalCrypt">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">PATTERN DECRYPTION</div>
+      <button class="modal-close" data-close="modalCrypt">✕</button>
+    </div>
+    <p class="npc-line" id="cryptInstruction" style="font-size:11.5px;">Memorize the symbol sequence, then reproduce it on the keypad.</p>
+    <div class="seq-display" id="seqDisplay"></div>
+    <div class="input-trail" id="inputTrail"></div>
+    <div class="symbol-pad" id="symbolPad"></div>
+    <button class="btn btn-gold btn-block" id="btnCryptStart" style="margin-top:12px;">Show Sequence</button>
+  </div>
+</div>
+
+<!-- Interrogation Modal -->
+<div class="modal-overlay" id="modalInterrogate">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">SUNDAY INTERROGATION ROOM</div>
+      <button class="modal-close" data-close="modalInterrogate">✕</button>
+    </div>
+    <p class="npc-line" style="font-size:11.5px;">Spend Evidence Tokens to press each suspect. Break them down before the week resets.</p>
+    <div id="interrogateList"></div>
+  </div>
+</div>
+
+<!-- Mega Boss Modal -->
+<div class="modal-overlay" id="modalMega">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">MONTHLY UNSUB CAPTURE</div>
+      <button class="modal-close" data-close="modalMega">✕</button>
+    </div>
+    <p class="npc-line" id="megaInstruction" style="font-size:11.5px;">The master case cracks open. Solve the final cipher to capture the Unsub and unlock a new Division Office.</p>
+    <div class="seq-display" id="megaSeqDisplay"></div>
+    <div class="input-trail" id="megaInputTrail"></div>
+    <div class="symbol-pad" id="megaSymbolPad"></div>
+    <button class="btn btn-red btn-block" id="btnMegaStart" style="margin-top:12px;">Show Final Sequence</button>
+  </div>
+</div>
+
+<!-- PIN Modal -->
+<div class="modal-overlay" id="modalPin">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">EYES ONLY — PARENT ACCESS</div>
+      <button class="modal-close" data-close="modalPin">✕</button>
+    </div>
+    <p class="npc-line" style="font-size:11.5px;">Enter the 4-digit clearance code.</p>
+    <div class="pin-dots" id="pinDots"></div>
+    <div class="pin-error" id="pinError"></div>
+    <div class="pin-pad" id="pinPad"></div>
+  </div>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-overlay" id="modalSettings">
+  <div class="modal-sheet">
+    <div class="modal-head">
+      <div class="modal-title">BUREAU SETTINGS</div>
+      <button class="modal-close" data-close="modalSettings">✕</button>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">Agent Name</div>
+      <div class="settings-row"><input type="text" id="setName" maxlength="18"></div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">Points & Currency</div>
+      <div class="settings-row">XP <input type="number" id="setXp"></div>
+      <div class="settings-row">Evidence Tokens <input type="number" id="setTokens"></div>
+      <div class="settings-row">Insights <input type="number" id="setInsights"></div>
+      <div class="settings-row">Case Clues <input type="number" id="setClues"></div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">Chore Block</div>
+      <div class="toggle-row">
+        <div class="toggle-opt" id="toggleAuto">Auto-Alternate</div>
+        <div class="toggle-opt" id="toggleManual">Manual</div>
+      </div>
+      <div class="toggle-row" style="margin-top:8px;">
+        <div class="toggle-opt" id="toggleBlockA">Block A</div>
+        <div class="toggle-opt" id="toggleBlockB">Block B</div>
+      </div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">Edit Tasks</div>
+      <div class="subhead">BLOCK B — Daily</div>
+      <textarea class="task-edit" id="editB_daily"></textarea>
+      <div class="subhead">BLOCK B — Thursday</div>
+      <textarea class="task-edit" id="editB_thu"></textarea>
+      <div class="subhead">BLOCK B — Weekend</div>
+      <textarea class="task-edit" id="editB_wknd"></textarea>
+      <div class="subhead">BLOCK A — Daily</div>
+      <textarea class="task-edit" id="editA_daily"></textarea>
+      <div class="subhead">BLOCK A — Thursday</div>
+      <textarea class="task-edit" id="editA_thu"></textarea>
+      <div class="subhead">BLOCK A — Weekend</div>
+      <textarea class="task-edit" id="editA_wknd"></textarea>
+      <div style="font-size:10px; color:#71695c; margin-top:4px;">One task per line.</div>
+    </div>
+
+    <div class="settings-group">
+      <div class="settings-label">Change Parent PIN</div>
+      <div class="settings-row"><input type="text" inputmode="numeric" maxlength="4" id="setPin" placeholder="4-digit PIN"></div>
+    </div>
+
+    <button class="btn btn-outline btn-block" id="btnResetProgress" style="margin-bottom:8px; border-color:var(--red);">Reset All Progress</button>
+    <button class="btn btn-gold btn-block" id="btnSaveSettings">Save Bureau Settings</button>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ================= DEFAULT DATA ================= */
+  var DEFAULT_TASKS = {
+    B: {
+      daily: [
+        "Tineco vacuum: dining room, kitchen, living room, bathroom, mud trail, hallway (min 10 min)",
+        "Rotate laundry — empty main basket, retrieve from Mom's room, clean dryer lint trap",
+        "Sort laundry into baskets, fold towels/square items, return baskets to shelf",
+        "Practice piano"
+      ],
+      thu: ["Take main garbage out when full (to curb Thursday night)"],
+      wknd: [
+        "Dust living room surfaces (ledge, piano, tables)",
+        "Big vacuum living room rug (move bench), front entry rugs, back entry rug"
+      ]
+    },
+    A: {
+      daily: [
+        "Walk dogs 15 min (skip if above +25°C, below -25°C, or raining)",
+        "Unload dishwasher & clean food trap",
+        "After dinner: load dishwasher, wash out recycles/ziplocs, wipe counters/sink area with spray",
+        "Practice piano"
+      ],
+      thu: ["Take recycles out when full (to curb Thursday night)"],
+      wknd: [
+        "Dust rec room surfaces (tables, shelves, white dresser, middle table on green couch)",
+        "Big vacuum rec room, laundry room, bathroom/hall"
+      ]
+    }
+  };
+
+  var RANKS = [
+    {min:0,   name:"Junior Analyst",         abbr:"JA"},
+    {min:150, name:"Field Profiler",          abbr:"FP"},
+    {min:400, name:"Unsub Specialist",        abbr:"US"},
+    {min:800, name:"Lead Bureau Investigator",abbr:"LBI"}
+  ];
+
+  var SUSPECTS_TEMPLATE = [
+    {id:"s1", name:"R. Holloway", icon:"🕶️"},
+    {id:"s2", name:"The Cipher", icon:"❔"},
+    {id:"s3", name:"M. Danvers", icon:"🧥"},
+    {id:"s4", name:"Unsub #7", icon:"🎭"}
+  ];
+
+  var LOCATIONS = [
+    {id:"loc1", name:"Metro Field Office", desc:"Home base — unlocked", icon:"🏢"},
+    {id:"loc2", name:"Riverside Annex", desc:"Locked — capture an Unsub to unlock", icon:"🌉"},
+    {id:"loc3", name:"Northgate Cyber Unit", desc:"Locked", icon:"🖥️"},
+    {id:"loc4", name:"Capitol Command", desc:"Locked", icon:"🏛️"}
+  ];
+
+  var SYMBOLS = ["▲","●","■","◆","★","✚"];
+
+  /* ================= STATE ================= */
+  var STORE_KEY = "lockstep_state_v1";
+  var state = null;
+
+  function defaultState(){
+    return {
+      name: "",
+      pin: "1234",
+      xp: 0,
+      tokens: 0,
+      insights: 0,
+      clues: 0,
+      autoAlternate: true,
+      manualBlock: "B",
+      blockAnchorWeek: getWeekNumber(new Date()),
+      tasks: JSON.parse(JSON.stringify(DEFAULT_TASKS)),
+      completed: {}, // dateKey -> { taskText: true }
+      suspects: SUSPECTS_TEMPLATE.map(function(s){ return {id:s.id, hp:100, defeated:false}; }),
+      suspectsWeek: getWeekNumber(new Date()),
+      unlockedLocations: ["loc1"],
+      firstLaunch: todayKey(),
+      daysActiveSet: [todayKey()]
+    };
+  }
+
+  function load(){
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw){ state = JSON.parse(raw); }
+      else { state = defaultState(); }
+    }catch(e){ state = defaultState(); }
+    // backfill any missing fields from a fresh default (in case of version drift)
+    var d = defaultState();
+    Object.keys(d).forEach(function(k){ if(state[k]===undefined) state[k]=d[k]; });
+    if(!state.daysActiveSet.includes(todayKey())){ state.daysActiveSet.push(todayKey()); }
+    save();
+  }
+  function save(){ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+
+  /* ================= DATE HELPERS ================= */
+  function todayKey(d){
+    d = d || new Date();
+    return d.getFullYear()+"-"+(d.getMonth()+1)+"-"+d.getDate();
+  }
+  function getWeekNumber(d){
+    var dt = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    dt.setUTCDate(dt.getUTCDate() + 4 - (dt.getUTCDay()||7));
+    var yearStart = new Date(Date.UTC(dt.getUTCFullYear(),0,1));
+    return Math.ceil((((dt - yearStart)/86400000)+1)/7);
+  }
+  function isThursday(){ return new Date().getDay()===4; }
+  function isWeekend(){ var d=new Date().getDay(); return d===0||d===6; }
+
+  function getActiveBlock(){
+    if(!state.autoAlternate) return state.manualBlock;
+    var wk = getWeekNumber(new Date());
+    var diff = wk - state.blockAnchorWeek;
+    diff = ((diff % 2) + 2) % 2;
+    return diff===0 ? "B" : "A";
+  }
+
+  /* ================= RANK ================= */
+  function getRank(xp){
+    var cur = RANKS[0], next = RANKS[1];
+    for(var i=0;i<RANKS.length;i++){
+      if(xp>=RANKS[i].min){ cur = RANKS[i]; next = RANKS[i+1] || null; }
+    }
+    return {cur:cur, next:next};
+  }
+
+  /* ================= TOAST ================= */
+  var toastEl = document.getElementById('toast');
+  var toastTimer = null;
+  function toast(msg){
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toastEl.classList.remove('show'); }, 2200);
+  }
+
+  /* ================= RENDER: HEADER ================= */
+  function renderHeader(){
+    document.getElementById('hdrName').textContent = state.name ? "Agent "+state.name : "Agent";
+    var r = getRank(state.xp);
+    document.getElementById('hdrRank').textContent = r.cur.name.toUpperCase();
+    document.getElementById('xpNowLbl').textContent = state.xp + " XP";
+    if(r.next){
+      var span = r.next.min - r.cur.min;
+      var into = state.xp - r.cur.min;
+      var pct = Math.min(100, Math.round((into/span)*100));
+      document.getElementById('xpBarFill').style.width = pct+"%";
+      document.getElementById('xpNextLbl').textContent = (r.next.min - state.xp) + " to " + r.next.name;
+    } else {
+      document.getElementById('xpBarFill').style.width = "100%";
+      document.getElementById('xpNextLbl').textContent = "Max Rank Achieved";
+    }
+    document.getElementById('pillTokens').textContent = state.tokens;
+    document.getElementById('pillInsights').textContent = state.insights;
+    document.getElementById('pillClues').textContent = state.clues + "/10";
+
+    document.getElementById('profBadge').textContent = r.cur.abbr;
+    document.getElementById('profRankName').textContent = r.cur.name;
+    document.getElementById('profRankNext').textContent = r.next ? (r.next.min-state.xp)+" XP to "+r.next.name : "Top rank reached";
+    document.getElementById('statXp').textContent = state.xp;
+    document.getElementById('statTokens').textContent = state.tokens;
+    document.getElementById('statInsights').textContent = state.insights;
+    document.getElementById('statDays').textContent = state.daysActiveSet.length;
+  }
+
+  /* ================= NPC DIALOGUE ================= */
+  function renderNpc(){
+    var name = state.name || "Agent";
+    var block = getActiveBlock();
+    var voss = block==="B"
+      ? "Voss: "+name+", we're running Block B protocols this cycle. Floors and laundry are the priority — the lint trap isn't optional, agent."
+      : "Voss: "+name+", Block A is live. Dogs, dishwasher, counters. Standard rotation. Don't skip the walk unless the weather log says otherwise.";
+    var reyesLines = [
+      "Reyes: "+name+", lab's got a fresh sample if you want to burn some Insights on it.",
+      "Reyes: "+name+", decryption queue is warm. Suspect keypads won't crack themselves.",
+      "Reyes: "+name+", nice clearance rate this week, "+name+". Keep the tokens coming."
+    ];
+    document.getElementById('vossLine').textContent = voss;
+    document.getElementById('reyesLine').innerHTML = reyesLines[Math.floor(Math.random()*reyesLines.length)] + '<span class="cursor"></span>';
+  }
+
+  /* ================= SUSPECTS ================= */
+  function ensureWeeklySuspectReset(){
+    var wk = getWeekNumber(new Date());
+    if(wk !== state.suspectsWeek){
+      state.suspectsWeek = wk;
+      state.suspects = SUSPECTS_TEMPLATE.map(function(s){ return {id:s.id, hp:100, defeated:false}; });
+      save();
+    }
+  }
+  function renderSuspects(){
+    ensureWeeklySuspectReset();
+    var grid = document.getElementById('suspectGrid');
+    grid.innerHTML = "";
+    SUSPECTS_TEMPLATE.forEach(function(tpl, i){
+      var s = state.suspects.find(function(x){return x.id===tpl.id;});
+      var rot = (i%2===0? -2: 2);
+      var div = document.createElement('div');
+      div.className = "suspect-card";
+      div.style.setProperty('--rot', rot+"deg");
+      div.innerHTML =
+        '<div class="suspect-photo">'+tpl.icon+'</div>'+
+        '<div class="suspect-name">'+ (s.defeated? tpl.name : maskName(tpl.name)) +'</div>'+
+        '<div class="suspect-status">'+ (s.defeated? 'CASE CLOSED' : s.hp+'% resistance') +'</div>'+
+        '<div class="suspect-hpbar"><div class="suspect-hpfill" style="width:'+s.hp+'%"></div></div>';
+      grid.appendChild(div);
+    });
+  }
+  function maskName(n){
+    var parts = n.split(" ");
+    return parts.map(function(p,i){ return i===0? p[0]+"." : "██████".slice(0,p.length); }).join(" ");
+  }
+
+  /* ================= TASKS RENDER ================= */
+  function renderBlockBanner(){
+    var block = getActiveBlock();
+    document.getElementById('blockLabel').textContent = "BLOCK "+block;
+    var d = new Date();
+    var dayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"];
+    document.getElementById('todayLabel').textContent = dayNames[d.getDay()];
+  }
+
+  function completedSet(){
+    var key = todayKey();
+    if(!state.completed[key]) state.completed[key] = {};
+    return state.completed[key];
+  }
+
+  function renderTaskList(containerId, taskArr, tag){
+    var container = document.getElementById(containerId);
+    container.innerHTML = "";
+    var done = completedSet();
+    if(taskArr.length===0){
+      container.innerHTML = '<div class="empty-note">No tasks in this category.</div>';
+      return;
+    }
+    taskArr.forEach(function(text){
+      var isDone = !!done[text];
+      var item = document.createElement('div');
+      item.className = "task-item"+(isDone?" done":"");
+      item.innerHTML =
+        '<div class="chk">'+(isDone?'✓':'')+'</div>'+
+        '<div><div class="task-text">'+escapeHtml(text)+'</div><div class="task-tag">'+tag+'</div></div>';
+      item.addEventListener('click', function(){ toggleTask(text); });
+      container.appendChild(item);
+    });
+  }
+
+  function renderTasks(){
+    renderBlockBanner();
+    var block = getActiveBlock();
+    var t = state.tasks[block];
+    renderTaskList('dailyTasks', t.daily, 'DAILY DATA GATHERING');
+
+    var thuTitle = document.getElementById('thuTitle');
+    var wkndTitle = document.getElementById('wkndTitle');
+    if(isThursday()){
+      thuTitle.style.display = "flex";
+      renderTaskList('thuTasks', t.thu, 'THURSDAY DIRECTIVE');
+    } else {
+      thuTitle.style.display = "none";
+      document.getElementById('thuTasks').innerHTML = "";
+    }
+    if(isWeekend()){
+      wkndTitle.style.display = "flex";
+      renderTaskList('wkndTasks', t.wknd, 'WEEKEND SWEEP');
+    } else {
+      wkndTitle.style.display = "none";
+      document.getElementById('wkndTasks').innerHTML = "";
+    }
+  }
+
+  function toggleTask(text){
+    var done = completedSet();
+    if(done[text]){
+      delete done[text];
+      state.xp = Math.max(0, state.xp - 10);
+      state.insights = Math.max(0, state.insights - 1);
+    } else {
+      done[text] = true;
+      state.xp += 10;
+      state.insights += 1;
+      toast("+10 XP · +1 Insight logged");
+    }
+    save();
+    renderAll();
+  }
+
+  function escapeHtml(s){
+    var d = document.createElement('div');
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  /* ================= MAP ================= */
+  function renderMap(){
+    var wrap = document.getElementById('mapNodes');
+    wrap.innerHTML = "";
+    LOCATIONS.forEach(function(loc){
+      var unlocked = state.unlockedLocations.indexOf(loc.id) !== -1;
+      var div = document.createElement('div');
+      div.className = "map-node "+(unlocked?"unlocked":"locked");
+      div.innerHTML =
+        '<div class="map-pin">'+(unlocked?loc.icon:'🔒')+'</div>'+
+        '<div><div class="map-name">'+loc.name+'</div><div class="map-desc">'+(unlocked?"Access granted":loc.desc)+'</div></div>';
+      wrap.appendChild(div);
+    });
+    document.getElementById('captureFill').style.width = Math.min(100, (state.clues/10)*100)+"%";
+    var btn = document.getElementById('btnMegaBoss');
+    if(state.clues>=10){
+      btn.disabled = false;
+      btn.textContent = "Launch Unsub Capture";
+    } else {
+      btn.disabled = true;
+      btn.textContent = state.clues+"/10 Clues — Insufficient";
+    }
+  }
+
+  /* ================= RENDER ALL ================= */
+  function renderAll(){
+    renderHeader();
+    renderNpc();
+    renderSuspects();
+    renderTasks();
+    renderMap();
+    save();
+  }
+
+  /* ================= NAV ================= */
+  document.querySelectorAll('.nav-tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.nav-tab').forEach(function(b){b.classList.remove('active');});
+      document.querySelectorAll('.view').forEach(function(v){v.classList.remove('active');});
+      btn.classList.add('active');
+      document.getElementById(btn.dataset.view).classList.add('active');
+    });
+  });
+
+  /* ================= MODAL HELPERS ================= */
+  function openModal(id){ document.getElementById(id).classList.add('open'); }
+  function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+  document.querySelectorAll('[data-close]').forEach(function(btn){
+    btn.addEventListener('click', function(){ closeModal(btn.dataset.close); });
+  });
+  document.querySelectorAll('.modal-overlay').forEach(function(ov){
+    ov.addEventListener('click', function(e){ if(e.target===ov) ov.classList.remove('open'); });
+  });
+
+  /* ================= ONBOARDING ================= */
+  function checkOnboard(){
+    if(!state.name){ openModal('modalOnboard'); }
+  }
+  document.getElementById('btnOnboardSubmit').addEventListener('click', function(){
+    var v = document.getElementById('onboardName').value.trim();
+    if(!v){ v = "Recruit"; }
+    state.name = v;
+    save();
+    closeModal('modalOnboard');
+    renderAll();
+    toast("Welcome to the Bureau, Agent "+v);
+  });
+
+  /* ================= WATER SORT (CHEMICAL TRACE) ================= */
+  var chemState = { tubes: [], selected: -1, history: [] };
+  var CAPACITY = 4;
+  var CHEM_COLORS = ["red","teal","gold","purple"];
+
+  function newChemPuzzle(){
+    // Build solved stacks then scramble via valid reverse pours to keep it winnable-ish.
+    var tubes = [];
+    CHEM_COLORS.forEach(function(c){
+      tubes.push([c,c,c,c]);
+    });
+    tubes.push([]); // empty helper tube
+    tubes.push([]); // empty helper tube
+
+    // scramble: perform random valid pours many times starting from solved (this always yields a solvable reverse)
+    for(var i=0;i<140;i++){
+      var from = Math.floor(Math.random()*tubes.length);
+      var to = Math.floor(Math.random()*tubes.length);
+      if(from===to) continue;
+      pourTubes(tubes, from, to, true);
+    }
+    chemState.tubes = tubes;
+    chemState.selected = -1;
+    chemState.history = [];
+  }
+
+  function pourTubes(tubes, from, to, silent){
+    var src = tubes[from], dst = tubes[to];
+    if(src.length===0) return false;
+    if(dst.length>=CAPACITY) return false;
+    var color = src[src.length-1];
+    if(dst.length>0 && dst[dst.length-1]!==color) return false;
+    var moved = 0;
+    while(src.length>0 && src[src.length-1]===color && dst.length<CAPACITY){
+      dst.push(src.pop());
+      moved++;
+    }
+    return moved>0;
+  }
+
+  function renderChem(){
+    var wrap = document.getElementById('tubesWrap');
+    wrap.innerHTML = "";
+    chemState.tubes.forEach(function(tube, idx){
+      var t = document.createElement('div');
+      t.className = "tube"+(chemState.selected===idx?" selected":"");
+      t.innerHTML = '<div class="tube-cap"></div>';
+      for(var i=0;i<tube.length;i++){
+        var seg = document.createElement('div');
+        seg.className = "tube-seg seg-"+tube[i];
+        t.appendChild(seg);
+      }
+      t.addEventListener('click', function(){ onTubeClick(idx); });
+      wrap.appendChild(t);
+    });
+  }
+
+  function onTubeClick(idx){
+    if(chemState.selected===-1){
+      if(chemState.tubes[idx].length===0) return;
+      chemState.selected = idx;
+    } else if(chemState.selected===idx){
+      chemState.selected = -1;
+    } else {
+      var snapshot = JSON.parse(JSON.stringify(chemState.tubes));
+      var ok = pourTubes(chemState.tubes, chemState.selected, idx, false);
+      if(ok){
+        chemState.history.push(snapshot);
+      }
+      chemState.selected = -1;
+      if(ok) checkChemWin();
+    }
+    renderChem();
+  }
+
+  function checkChemWin(){
+    var win = chemState.tubes.every(function(t){
+      return t.length===0 || (t.length===CAPACITY && t.every(function(c){return c===t[0];}));
+    });
+    if(win){
+      setTimeout(function(){
+        state.tokens += 3;
+        state.clues = Math.min(10, state.clues+1);
+        save();
+        renderAll();
+        toast("Trace isolated! +3 Evidence Tokens · +1 Clue");
+        closeModal('modalChem');
+      }, 300);
+    }
+  }
+
+  document.getElementById('btnLaunchChem').addEventListener('click', function(){
+    if(state.insights < 3){ toast("Need 3 Insights to run analysis"); return; }
+    state.insights -= 3;
+    save(); renderAll();
+    newChemPuzzle();
+    renderChem();
+    openModal('modalChem');
+  });
+  document.getElementById('btnChemReset').addEventListener('click', function(){ newChemPuzzle(); renderChem(); });
+  document.getElementById('btnChemUndo').addEventListener('click', function(){
+    if(chemState.history.length){
+      chemState.tubes = chemState.history.pop();
+      chemState.selected = -1;
+      renderChem();
+    }
+  });
+
+  /* ================= PATTERN DECRYPTION ================= */
+  var cryptState = { seq: [], input: [], showing:false };
+  function newCryptPuzzle(len){
+    cryptState.seq = [];
+    for(var i=0;i<len;i++){ cryptState.seq.push(SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)]); }
+    cryptState.input = [];
+  }
+  function buildSymbolPad(padId, onPick){
+    var pad = document.getElementById(padId);
+    pad.innerHTML = "";
+    SYMBOLS.forEach(function(sym){
+      var b = document.createElement('button');
+      b.className = "symbol-btn";
+      b.textContent = sym;
+      b.addEventListener('click', function(){ onPick(sym); });
+      pad.appendChild(b);
+    });
+  }
+  function renderSeq(displayId, seq, revealed){
+    document.getElementById(displayId).textContent = revealed ? seq.join("  ") : seq.map(function(){return "?";}).join("  ");
+  }
+  function renderTrail(trailId, input){
+    document.getElementById(trailId).textContent = input.join(" ");
+  }
+
+  buildSymbolPad('symbolPad', function(sym){
+    if(!cryptState.showing) return;
+    cryptState.input.push(sym);
+    renderTrail('inputTrail', cryptState.input);
+    if(cryptState.input.length === cryptState.seq.length){
+      var correct = cryptState.input.every(function(s,i){ return s===cryptState.seq[i]; });
+      setTimeout(function(){
+        if(correct){
+          state.tokens += 3;
+          state.clues = Math.min(10, state.clues+1);
+          save(); renderAll();
+          toast("Keypad cracked! +3 Evidence Tokens · +1 Clue");
+          closeModal('modalCrypt');
+        } else {
+          toast("Sequence rejected — try again");
+          cryptState.input = [];
+          cryptState.showing = false;
+          renderSeq('seqDisplay', cryptState.seq, false);
+          renderTrail('inputTrail', []);
+          document.getElementById('btnCryptStart').style.display = "block";
+        }
+      }, 250);
+    }
+  });
+
+  document.getElementById('btnLaunchCrypt').addEventListener('click', function(){
+    if(state.insights < 3){ toast("Need 3 Insights to decrypt"); return; }
+    state.insights -= 3;
+    save(); renderAll();
+    newCryptPuzzle(4 + Math.floor(Math.random()*2));
+    cryptState.showing = false;
+    renderSeq('seqDisplay', cryptState.seq, false);
+    renderTrail('inputTrail', []);
+    document.getElementById('btnCryptStart').style.display = "block";
+    openModal('modalCrypt');
+  });
+  document.getElementById('btnCryptStart').addEventListener('click', function(){
+    cryptState.showing = true;
+    renderSeq('seqDisplay', cryptState.seq, true);
+    this.style.display = "none";
+    setTimeout(function(){
+      renderSeq('seqDisplay', cryptState.seq, false);
+    }, 1600 + cryptState.seq.length*350);
+  });
+
+  /* ================= INTERROGATION ================= */
+  document.getElementById('btnInterrogate').addEventListener('click', function(){
+    renderInterrogate();
+    openModal('modalInterrogate');
+  });
+  function renderInterrogate(){
+    ensureWeeklySuspectReset();
+    var list = document.getElementById('interrogateList');
+    list.innerHTML = "";
+    SUSPECTS_TEMPLATE.forEach(function(tpl){
+      var s = state.suspects.find(function(x){return x.id===tpl.id;});
+      var row = document.createElement('div');
+      row.className = "puzzle-launch";
+      row.innerHTML =
+        '<div class="puzzle-ico" style="background:rgba(165,49,44,0.15); border:1px solid var(--red);">'+tpl.icon+'</div>'+
+        '<div class="puzzle-info">'+
+          '<div class="puzzle-title">'+ (s.defeated?tpl.name:maskName(tpl.name)) +'</div>'+
+          '<div class="puzzle-sub">'+ (s.defeated?'Confessed & closed':s.hp+'% resistance remaining') +'</div>'+
+        '</div>';
+      if(!s.defeated){
+        var b = document.createElement('button');
+        b.className = "btn btn-red";
+        b.textContent = "Press (1 Token)";
+        b.disabled = state.tokens<1;
+        b.addEventListener('click', function(){ pressSuspect(s.id); });
+        row.appendChild(b);
+      }
+      list.appendChild(row);
+    });
+  }
+  function pressSuspect(id){
+    if(state.tokens<1){ toast("No Evidence Tokens left"); return; }
+    state.tokens -= 1;
+    var s = state.suspects.find(function(x){return x.id===id;});
+    var dmg = 15 + Math.floor(Math.random()*20);
+    s.hp = Math.max(0, s.hp - dmg);
+    if(s.hp<=0 && !s.defeated){
+      s.defeated = true;
+      state.xp += 60;
+      state.clues = Math.min(10, state.clues+2);
+      toast("Suspect broke! +60 XP · +2 Clues");
+    } else {
+      toast("Pressed suspect: -"+dmg+"% resistance");
+    }
+    save();
+    renderAll();
+    renderInterrogate();
+  }
+
+  /* ================= MEGA BOSS ================= */
+  var megaState = { seq: [], input: [], showing:false };
+  buildSymbolPad('megaSymbolPad', function(sym){
+    if(!megaState.showing) return;
+    megaState.input.push(sym);
+    renderTrail('megaInputTrail', megaState.input);
+    if(megaState.input.length === megaState.seq.length){
+      var correct = megaState.input.every(function(s,i){ return s===megaState.seq[i]; });
+      setTimeout(function(){
+        if(correct){
+          state.clues = 0;
+          state.xp += 200;
+          state.tokens += 5;
+          var next = LOCATIONS.find(function(l){ return state.unlockedLocations.indexOf(l.id)===-1; });
+          if(next){ state.unlockedLocations.push(next.id); }
+          save(); renderAll();
+          toast(next ? ("Unsub captured! Unlocked "+next.name) : "Unsub captured! +200 XP");
+          closeModal('modalMega');
+        } else {
+          toast("Cipher failed — the Unsub slips away, try again");
+          megaState.input = [];
+          megaState.showing = false;
+          renderSeq('megaSeqDisplay', megaState.seq, false);
+          renderTrail('megaInputTrail', []);
+          document.getElementById('btnMegaStart').style.display = "block";
+        }
+      }, 250);
+    }
+  });
+  document.getElementById('btnMegaBoss').addEventListener('click', function(){
+    if(state.clues<10) return;
+    megaState.seq = [];
+    var len = 7;
+    for(var i=0;i<len;i++){ megaState.seq.push(SYMBOLS[Math.floor(Math.random()*SYMBOLS.length)]); }
+    megaState.input = [];
+    megaState.showing = false;
+    renderSeq('megaSeqDisplay', megaState.seq, false);
+    renderTrail('megaInputTrail', []);
+    document.getElementById('btnMegaStart').style.display = "block";
+    openModal('modalMega');
+  });
+  document.getElementById('btnMegaStart').addEventListener('click', function(){
+    megaState.showing = true;
+    renderSeq('megaSeqDisplay', megaState.seq, true);
+    this.style.display = "none";
+    setTimeout(function(){
+      renderSeq('megaSeqDisplay', megaState.seq, false);
+    }, 1800 + megaState.seq.length*350);
+  });
+
+  /* ================= PIN ================= */
+  var pinBuffer = "";
+  var pinOnSuccess = null;
+  function openPin(onSuccess){
+    pinBuffer = "";
+    pinOnSuccess = onSuccess;
+    document.getElementById('pinError').textContent = "";
+    renderPinDots();
+    openModal('modalPin');
+  }
+  function renderPinDots(){
+    var dots = document.getElementById('pinDots');
+    dots.innerHTML = "";
+    for(var i=0;i<4;i++){
+      var d = document.createElement('div');
+      d.className = "pin-dot"+(i<pinBuffer.length?" filled":"");
+      dots.appendChild(d);
+    }
+  }
+  (function buildPinPad(){
+    var pad = document.getElementById('pinPad');
+    var keys = ["1","2","3","4","5","6","7","8","9","⌫","0","OK"];
+    keys.forEach(function(k){
+      var b = document.createElement('button');
+      b.className = "pin-key";
+      b.textContent = k;
+      b.addEventListener('click', function(){
+        if(k==="⌫"){ pinBuffer = pinBuffer.slice(0,-1); }
+        else if(k==="OK"){ tryPin(); return; }
+        else if(pinBuffer.length<4){ pinBuffer += k; }
+        renderPinDots();
+        if(pinBuffer.length===4){ tryPin(); }
+      });
+      pad.appendChild(b);
+    });
+  })();
+  function tryPin(){
+    if(pinBuffer === state.pin){
+      closeModal('modalPin');
+      if(pinOnSuccess) pinOnSuccess();
+    } else {
+      document.getElementById('pinError').textContent = "Incorrect clearance code.";
+      pinBuffer = "";
+      renderPinDots();
+    }
+  }
+
+  document.getElementById('btnSettings').addEventListener('click', function(){ openPin(openSettings); });
+  document.getElementById('btnOpenSettingsProfile').addEventListener('click', function(){ openPin(openSettings); });
+
+  /* ================= SETTINGS ================= */
+  function openSettings(){
+    document.getElementById('setName').value = state.name;
+    document.getElementById('setXp').value = state.xp;
+    document.getElementById('setTokens').value = state.tokens;
+    document.getElementById('setInsights').value = state.insights;
+    document.getElementById('setClues').value = state.clues;
+    document.getElementById('setPin').value = "";
+    document.getElementById('editB_daily').value = state.tasks.B.daily.join("\n");
+    document.getElementById('editB_thu').value = state.tasks.B.thu.join("\n");
+    document.getElementById('editB_wknd').value = state.tasks.B.wknd.join("\n");
+    document.getElementById('editA_daily').value = state.tasks.A.daily.join("\n");
+    document.getElementById('editA_thu').value = state.tasks.A.thu.join("\n");
+    document.getElementById('editA_wknd').value = state.tasks.A.wknd.join("\n");
+    refreshToggles();
+    openModal('modalSettings');
+  }
+  function refreshToggles(){
+    document.getElementById('toggleAuto').classList.toggle('active', state.autoAlternate);
+    document.getElementById('toggleManual').classList.toggle('active', !state.autoAlternate);
+    document.getElementById('toggleBlockA').classList.toggle('active', state.manualBlock==="A");
+    document.getElementById('toggleBlockB').classList.toggle('active', state.manualBlock==="B");
+  }
+  document.getElementById('toggleAuto').addEventListener('click', function(){ state.autoAlternate = true; refreshToggles(); });
+  document.getElementById('toggleManual').addEventListener('click', function(){ state.autoAlternate = false; refreshToggles(); });
+  document.getElementById('toggleBlockA').addEventListener('click', function(){ state.manualBlock = "A"; state.autoAlternate=false; refreshToggles(); });
+  document.getElementById('toggleBlockB').addEventListener('click', function(){ state.manualBlock = "B"; state.autoAlternate=false; refreshToggles(); });
+
+  function linesFrom(id){
+    return document.getElementById(id).value.split("\n").map(function(s){return s.trim();}).filter(Boolean);
+  }
+  document.getElementById('btnSaveSettings').addEventListener('click', function(){
+    state.name = document.getElementById('setName').value.trim() || state.name;
+    state.xp = parseInt(document.getElementById('setXp').value,10) || 0;
+    state.tokens = parseInt(document.getElementById('setTokens').value,10) || 0;
+    state.insights = parseInt(document.getElementById('setInsights').value,10) || 0;
+    state.clues = Math.max(0, Math.min(10, parseInt(document.getElementById('setClues').value,10) || 0));
+    state.tasks.B.daily = linesFrom('editB_daily');
+    state.tasks.B.thu = linesFrom('editB_thu');
+    state.tasks.B.wknd = linesFrom('editB_wknd');
+    state.tasks.A.daily = linesFrom('editA_daily');
+    state.tasks.A.thu = linesFrom('editA_thu');
+    state.tasks.A.wknd = linesFrom('editA_wknd');
+    var newPin = document.getElementById('setPin').value.trim();
+    if(newPin && /^\d{4}$/.test(newPin)){ state.pin = newPin; }
+    save();
+    closeModal('modalSettings');
+    renderAll();
+    toast("Bureau settings saved");
+  });
+  document.getElementById('btnResetProgress').addEventListener('click', function(){
+    if(confirm("Reset ALL progress? This cannot be undone.")){
+      var name = state.name, pin = state.pin;
+      state = defaultState();
+      state.name = name; state.pin = pin;
+      save();
+      closeModal('modalSettings');
+      renderAll();
+      toast("Case files wiped. Fresh start.");
+    }
+  });
+
+  /* ================= INIT ================= */
+  load();
+  checkOnboard();
+  renderAll();
+
+})();
+</script>
+</body>
+</html>
